@@ -1,0 +1,8 @@
+{
+  "name": "QuantRadar — Binary Options Signal & Strategy Engine",
+  "description": "Ultra-lightweight Binary Options Signal Radar, Volatility Regime Filter, and 100-Signal Strategy Evaluation Engine with Python Windows Server deployment bundle.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

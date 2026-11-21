@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuantRadar — موتور سیگنال‌دهی و ارزیابی استراتژی</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&family=Vazirmatn:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Vazirmatn', 'Plus Jakarta Sans', system-ui, sans-serif; background: #0B0F17; color: #F1F5F9; }
+    .font-mono-num { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; direction: ltr; unicode-bidi: embed; }
+    @keyframes flashIn { 0% { opacity: 0; transform: translateY(-6px); } 100% { opacity: 1; transform: translateY(0); } }
+    .signal-enter { animation: flashIn 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+  </style>
+</head>
+<body class="min-h-screen bg-[#0B0F17] text-slate-100 antialiased">
+  <header class="sticky top-0 z-30 border-b border-slate-800/90 bg-[#0E1420]/95 backdrop-blur">
+    <div class="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-5 py-3">
+      <div class="flex items-center gap-6 shrink-0">
+        <span class="text-lg font-bold tracking-tight text-white whitespace-nowrap">QuantRadar</span>
+        <nav class="hidden md:flex items-center gap-5 text-sm font-medium text-slate-400">
+          <button data-tab="radar" data-i18n="nav_radar" class="tab-btn text-white whitespace-nowrap">رادار سیگنال</button>
+          <button data-tab="leaderboard" data-i18n="nav_lab" class="tab-btn hover:text-slate-200 whitespace-nowrap">آزمایشگاه استراتژی</button>
+          <button data-tab="health" data-i18n="nav_health" class="tab-btn hover:text-slate-200 whitespace-nowrap">سلامت بازار</button>
+          <button data-tab="history" data-i18n="nav_log" class="tab-btn hover:text-slate-200 whitespace-nowrap">تاریخچه سیگنال</button>
+        </nav>
+      </div>
+
+      <div class="flex items-center gap-3 shrink-0 text-xs">
+        <div class="hidden xl:flex items-center gap-2.5 text-slate-400 font-mono-num whitespace-nowrap">
+          <span>CPU <strong id="tel-cpu" class="text-slate-200">0.0%</strong></span>
+          <span>/</span>
+          <span>RAM <strong id="tel-ram" class="text-slate-200">0.0%</strong></span>
+          <span>/</span>
+          <span class="inline-flex items-center gap-1.5">
+            <span id="ws-dot" class="h-2 w-2 rounded-full bg-rose-500"></span>
+            <span id="ws-status" class="text-rose-400">Disconnected</span>
+          </span>
+        </div>
+
+        <button id="btn-lang" class="rounded-md border border-slate-700 bg-[#141B29] px-2.5 py-1.5 text-slate-200 hover:bg-slate-800 font-mono-num">EN</button>
+
+        <div class="flex items-center gap-1 rounded-md border border-slate-800 bg-[#0B0F17] p-0.5">
+          <button type="button" id="btn-mode-shadow" data-i18n="mode_shadow" class="px-2.5 py-1.5 rounded text-xs font-medium bg-blue-600 text-white whitespace-nowrap transition-colors">تست سایه</button>
+          <button type="button" id="btn-mode-sniper" data-i18n="mode_sniper" class="px-2.5 py-1.5 rounded text-xs font-medium text-slate-400 hover:text-white whitespace-nowrap transition-colors">اسنایپر واقعی</button>
+        </div>
+
+        <button type="button" id="btn-open-config" data-i18n="btn_connect" class="rounded-md bg-blue-600 px-3.5 py-1.5 font-medium text-white hover:bg-blue-500 whitespace-nowrap">اتصال به بروکر (SSID)</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-[1600px] px-5 py-5 space-y-5">
+    <!-- Active Watchlist & Timeframe Scope Bar -->
+    <section class="rounded-lg border border-slate-800 bg-[#111827] p-4 space-y-3 text-xs">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="font-semibold text-white" data-i18n="scope_title">تنظیمات ارزهای هدف، تایم‌فریم و دقت استراتژی</span>
+          <span id="scope-count-badge" class="font-mono-num text-amber-400">0 انتخاب‌شده (متوقف)</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <input id="custom-symbol-input" type="text" placeholder="مثلاً XAU/USD یا EUR/GBP OTC" class="rounded border border-slate-700 bg-[#0B0F17] px-2.5 py-1.5 text-xs text-white w-52 font-mono-num" />
+          <button type="button" id="btn-add-symbol" data-i18n="btn_add_asset" class="rounded bg-slate-800 border border-slate-700 px-3 py-1.5 text-slate-200 hover:bg-slate-700">افزودن ارز</button>
+          <button type="button" id="btn-clear-assets" data-i18n="btn_clear_assets" class="rounded bg-slate-900 border border-slate-700 px-2.5 py-1.5 text-slate-300 hover:text-rose-400 hover:border-rose-500/40">توقف همه</button>
+          <label class="inline-flex items-center gap-1.5 text-slate-300 px-2">
+            <input id="chk-precision" type="checkbox" checked class="accent-emerald-500" />
+            <span data-i18n="precision_label">فیلتر دقت بالا (≥78%)</span>
+          </label>
+          <button type="button" id="btn-apply-scope" data-i18n="btn_apply_scope" class="rounded bg-emerald-600 px-3.5 py-1.5 font-medium text-white hover:bg-emerald-500">اعمال محدوده تست</button>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/80">
+        <span class="text-slate-400" data-i18n="tf_label">تایم‌فریم‌ها:</span>
+        <div id="tf-buttons" class="flex flex-wrap gap-1.5"></div>
+        <span class="mx-2 text-slate-700">|</span>
+        <span class="text-slate-400" data-i18n="assets_label">ارزهای فعال:</span>
+        <div id="asset-buttons" class="flex flex-wrap gap-1.5"></div>
+      </div>
+    </section>
+
+    <!-- TAB 1: LIVE SIGNAL RADAR -->
+    <section id="tab-radar" class="tab-panel space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div>
+          <h1 class="text-lg font-semibold text-white" data-i18n="radar_title">رادار سیگنال زنده</h1>
+          <p class="text-xs text-slate-400" id="feed-label">Disconnected</p>
+        </div>
+        <div class="flex items-center gap-4 text-xs font-mono-num">
+          <span>Mode: <strong id="mode-indicator" class="text-blue-400">SHADOW</strong></span>
+          <span>Pending: <strong id="pending-count" class="text-amber-400">0</strong></span>
+          <span>Auto-Trade: <strong id="at-status-badge" class="text-slate-400">OFF</strong></span>
+        </div>
+      </div>
+
+      <div id="radar-status-banner" class="hidden rounded-lg border p-4 text-xs"></div>
+      <div id="live-signals-grid" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"></div>
+    </section>
+
+    <!-- TAB 2: STRATEGY LEADERBOARD -->
+    <section id="tab-leaderboard" class="tab-panel hidden space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <h2 class="text-lg font-semibold text-white" data-i18n="lab_title">جدول عملکرد استراتژی‌ها (۱۰۰ سیگنال اخیر)</h2>
+        <div class="flex items-center gap-2 text-xs">
+          <input id="top-wr-input" type="number" value="68" min="50" max="95" class="w-16 rounded border border-slate-700 bg-[#111827] px-2 py-1.5 font-mono-num text-white" />
+          <button type="button" id="btn-select-top" data-i18n="btn_select_top" class="rounded bg-emerald-600 px-3 py-1.5 font-medium text-white hover:bg-emerald-500">انتخاب خودکار بهترین‌ها</button>
+          <button type="button" id="btn-clear-history" data-i18n="btn_clear_history" class="rounded border border-slate-700 bg-[#0B0F17] px-3 py-1.5 text-slate-300 hover:text-rose-400">پاکسازی آمار</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto rounded-lg border border-slate-800 bg-[#111827]">
+        <table class="w-full text-sm">
+          <thead class="border-b border-slate-800 text-xs text-slate-400">
+            <tr>
+              <th class="px-4 py-3 text-start">Strategy</th>
+              <th class="px-3 py-3 text-end">Last 100 WR</th>
+              <th class="px-3 py-3 text-end">Today WR</th>
+              <th class="px-3 py-3 text-end">Signals</th>
+              <th class="px-3 py-3 text-end">W / L</th>
+              <th class="px-3 py-3 text-end">Streak</th>
+              <th class="px-3 py-3 text-center">Shadow</th>
+              <th class="px-4 py-3 text-center">Active</th>
+            </tr>
+          </thead>
+          <tbody id="leaderboard-body" class="divide-y divide-slate-800/70"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- TAB 3: MARKET HEALTH -->
+    <section id="tab-health" class="tab-panel hidden space-y-4">
+      <h2 class="text-lg font-semibold text-white border-b border-slate-800 pb-3" data-i18n="health_title">رادار سلامت و نوسان بازار</h2>
+      <div id="market-health-grid" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"></div>
+    </section>
+
+    <!-- TAB 4: SIGNAL HISTORY -->
+    <section id="tab-history" class="tab-panel hidden space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h2 class="text-lg font-semibold text-white" data-i18n="log_title">تاریخچه کامل سیگنال‌ها (SQLite)</h2>
+        <a href="/api/history/export.csv" class="rounded bg-blue-600 px-3.5 py-1.5 text-xs font-medium text-white hover:bg-blue-500">CSV Export</a>
+      </div>
+      <div class="overflow-x-auto rounded-lg border border-slate-800 bg-[#111827]">
+        <table class="w-full text-xs">
+          <thead class="border-b border-slate-800 text-slate-400">
+            <tr>
+              <th class="px-4 py-2.5 text-start">UTC</th>
+              <th class="px-3 py-2.5 text-start">Asset</th>
+              <th class="px-3 py-2.5 text-start">TF</th>
+              <th class="px-3 py-2.5 text-start">Strategy</th>
+              <th class="px-3 py-2.5 text-start">Dir</th>
+              <th class="px-3 py-2.5 text-end">Entry</th>
+              <th class="px-3 py-2.5 text-end">Exit</th>
+              <th class="px-4 py-2.5 text-end">Status</th>
+            </tr>
+          </thead>
+          <tbody id="history-body" class="divide-y divide-slate-800/70 font-mono-num"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Broker SSID & Auto-Trade Config Modal -->
+  <div id="config-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/75 p-4 overflow-y-auto">
+    <div class="w-full max-w-xl rounded-lg border border-slate-800 bg-[#111827] p-6 space-y-5 text-xs">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-semibold text-white" data-i18n="modal_title">اتصال به بروکر (Pocket Option / Olymp Trade) و تست اتصال</h3>
+        <button type="button" id="btn-close-config" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+
+      <form id="config-form" class="space-y-4">
+        <div>
+          <label class="block text-slate-400 mb-1" data-i18n="provider_label">منبع قیمت زنده</label>
+          <select id="cfg-provider" class="w-full rounded border border-slate-700 bg-[#0B0F17] px-3 py-2 text-white">
+            <option value="NONE">قطع اتصال / متوقف (Disconnected)</option>
+            <option value="POCKET_OPTION">Pocket Option WebSocket (SSID)</option>
+            <option value="OLYMP_TRADE">Olymp Trade WebSocket (SSID)</option>
+            <option value="MOCK">شبیه‌ساز تست آفلاین (Mock / Replay)</option>
+          </select>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="text-slate-400">Session SSID (Pocket Option / Olymp Trade)</label>
+            <label class="inline-flex items-center gap-1.5 text-slate-300">
+              <input id="cfg-demo" type="checkbox" checked class="accent-emerald-500" />
+              <span data-i18n="demo_label">حساب دمو (امن)</span>
+            </label>
+          </div>
+          <input id="cfg-ssid" type="password" placeholder="42[&quot;auth&quot;,{&quot;session&quot;:&quot;...&quot;}] یا کوکی ssid" class="w-full rounded border border-slate-700 bg-[#0B0F17] px-3 py-2 font-mono-num text-white" />
+          <div class="flex items-center gap-2 pt-1">
+            <button type="button" id="btn-test-conn" data-i18n="btn_test_conn" class="rounded border border-blue-500/60 bg-blue-600/20 px-3.5 py-1.5 font-medium text-blue-300 hover:bg-blue-600/30">تست اتصال واقعی</button>
+            <button type="button" id="btn-disconnect" data-i18n="btn_disconnect" class="rounded border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-rose-300 hover:bg-rose-500/20">قطع اتصال</button>
+          </div>
+          <div id="test-conn-result" class="hidden rounded border p-2.5 font-mono-num text-[11px]"></div>
+        </div>
+
+        <div class="border-t border-slate-800 pt-3 space-y-3">
+          <label class="flex items-center gap-2 text-amber-300 font-medium">
+            <input id="cfg-at-enabled" type="checkbox" class="h-4 w-4 accent-amber-500" />
+            <span data-i18n="at_enable">فعال‌سازی ترید خودکار (فقط در حالت اسنایپر واقعی و روی استراتژی‌های فعال)</span>
+          </label>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="text-slate-400">Broker
+              <select id="cfg-at-target" class="mt-1 w-full rounded border border-slate-700 bg-[#0B0F17] px-2 py-1.5 text-white">
+                <option value="POCKET_OPTION">Pocket Option</option>
+                <option value="OLYMP_TRADE">Olymp Trade</option>
+              </select>
+            </label>
+            <label class="text-slate-400">Stake ($)
+              <input id="cfg-at-size" type="number" step="1" value="10" min="1" class="mt-1 w-full rounded border border-slate-700 bg-[#0B0F17] px-2 py-1.5 font-mono-num text-white" />
+            </label>
+            <label class="text-slate-400">Max Loss Stop
+              <input id="cfg-at-maxloss" type="number" value="3" min="1" max="15" class="mt-1 w-full rounded border border-slate-700 bg-[#0B0F17] px-2 py-1.5 font-mono-num text-white" />
+            </label>
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-2 border-t border-slate-800 pt-3">
+          <button type="button" id="btn-cancel-config" class="rounded border border-slate-700 px-4 py-2 text-slate-300">انصراف</button>
+          <button type="submit" class="rounded bg-blue-600 px-4 py-2 font-medium text-white hover:bg-blue-500">ذخیره و اتصال</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const DICT = {
+      fa: {
+        nav_radar: 'رادار سیگنال', nav_lab: 'آزمایشگاه استراتژی', nav_health: 'سلامت بازار', nav_log: 'تاریخچه سیگنال',
+        mode_shadow: 'تست سایه', mode_sniper: 'اسنایپر واقعی', btn_connect: 'اتصال به بروکر (SSID)',
+        scope_title: 'تنظیمات ارزهای هدف، تایم‌فریم و دقت استراتژی', btn_add_asset: 'افزودن ارز',
+        btn_clear_assets: 'توقف همه', precision_label: 'فیلتر دقت بالا (≥78%)', btn_apply_scope: 'اعمال محدوده تست',
+        tf_label: 'تایم‌فریم‌ها:', assets_label: 'ارزهای فعال:', radar_title: 'رادار سیگنال زنده',
+        lab_title: 'جدول عملکرد استراتژی‌ها (۱۰۰ سیگنال اخیر)', btn_select_top: 'انتخاب خودکار بهترین‌ها',
+        btn_clear_history: 'پاکسازی آمار', health_title: 'رادار سلامت و نوسان بازار', log_title: 'تاریخچه کامل سیگنال‌ها (SQLite)',
+        modal_title: 'اتصال به بروکر (Pocket Option / Olymp Trade) و تست اتصال',
+        provider_label: 'منبع قیمت زنده', demo_label: 'حساب دمو (امن)', btn_test_conn: 'تست اتصال واقعی',
+        btn_disconnect: 'قطع اتصال', at_enable: 'فعال‌سازی ترید خودکار (فقط در حالت اسنایپر واقعی)',
+      },
+      en: {
+        nav_radar: 'Signal Radar', nav_lab: 'Strategy Lab', nav_health: 'Market Health', nav_log: 'Signal Log',
+        mode_shadow: 'Shadow Lab', mode_sniper: 'Active Sniper', btn_connect: 'Broker SSID',
+        scope_title: 'Target Watchlist, Timeframe & Precision Scope', btn_add_asset: 'Add Asset',
+        btn_clear_assets: 'Clear All', precision_label: 'High-Precision Gate (≥78%)', btn_apply_scope: 'Apply Scope',
+        tf_label: 'Timeframes:', assets_label: 'Watched Assets:', radar_title: 'Live Signal Radar',
+        lab_title: 'Strategy Leaderboard (Last 100 Signals)', btn_select_top: 'Select Top Performers',
+        btn_clear_history: 'Clear Stats', health_title: 'Market Health & Volatility Radar', log_title: 'Signal History Log (SQLite)',
+        modal_title: 'Broker Connection (Pocket Option / Olymp Trade) & Test',
+        provider_label: 'Live Price Feed Provider', demo_label: 'Demo Account (Safe)', btn_test_conn: 'Test Connection',
+        btn_disconnect: 'Disconnect', at_enable: 'Arm Auto-Trade Execution (Active Sniper Mode only)',
+      }
+    };
+
+    const state = {
+      lang: 'fa', mode: 'SHADOW', wsConnected: false, brokerProvider: 'NONE',
+      signals: [], leaderboard: [], marketHealth: [],
+      allAssets: [], selectedAssets: [], allTfs: ['5s','15s','30s','1m','5m','15m'], selectedTfs: ['5m'],
+      highPrecision: true, autoTrade: { enabled: false },
+    };
+
+    function esc(s) { const d = document.createElement('div'); d.textContent = String(s ?? ''); return d.innerHTML; }
+
+    function applyLang() {
+      document.documentElement.lang = state.lang;
+      document.documentElement.dir = state.lang === 'fa' ? 'rtl' : 'ltr';
+      document.getElementById('btn-lang').textContent = state.lang === 'fa' ? 'EN' : 'FA';
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (DICT[state.lang][k]) el.textContent = DICT[state.lang][k];
+      });
+      renderScope();
+      renderSignals();
+    }
+
+    function renderModeButtons() {
+      const sh = document.getElementById('btn-mode-shadow');
+      const sn = document.getElementById('btn-mode-sniper');
+      const ind = document.getElementById('mode-indicator');
+      const isSniper = state.mode === 'SNIPER';
+      sh.className = `px-2.5 py-1.5 rounded text-xs font-medium whitespace-nowrap transition-colors ${!isSniper ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`;
+      sn.className = `px-2.5 py-1.5 rounded text-xs font-medium whitespace-nowrap transition-colors ${isSniper ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`;
+      ind.textContent = isSniper ? 'ACTIVE SNIPER' : 'SHADOW LAB';
+      ind.className = isSniper ? 'text-emerald-400' : 'text-blue-400';
+      renderSignals();
+    }
+
+    function renderConnectionBadge() {
+      const dot = document.getElementById('ws-dot');
+      const lbl = document.getElementById('ws-status');
+      if (state.wsConnected) {
+        dot.className = 'h-2 w-2 rounded-full bg-emerald-500';
+        lbl.className = 'text-emerald-400';
+        lbl.textContent = state.brokerProvider === 'MOCK' ? 'Simulator' : 'WS Connected';
+      } else {
+        dot.className = 'h-2 w-2 rounded-full bg-rose-500';
+        lbl.className = 'text-rose-400';
+        lbl.textContent = 'Disconnected';
+      }
+    }
+
+    function renderScope() {
+      const countEl = document.getElementById('scope-count-badge');
+      if (state.selectedAssets.length === 0) {
+        countEl.className = 'font-mono-num text-amber-400';
+        countEl.textContent = state.lang === 'fa' ? '0 ارز انتخاب‌شده (تست متوقف است)' : '0 Selected (Paused)';
+      } else {
+        countEl.className = 'font-mono-num text-emerald-400';
+        countEl.textContent = state.lang === 'fa' ? `${state.selectedAssets.length} ارز فعال` : `${state.selectedAssets.length} Assets Active`;
+      }
+
+      const tfEl = document.getElementById('tf-buttons');
+      tfEl.innerHTML = state.allTfs.map(tf => {
+        const active = state.selectedTfs.includes(tf);
+        return `<button type="button" data-tf="${esc(tf)}" class="tf-chip font-mono-num px-2.5 py-1 rounded border ${active ? 'border-blue-500 bg-blue-600/20 text-blue-300' : 'border-slate-700 bg-[#0B0F17] text-slate-400'}">${esc(tf)}</button>`;
+      }).join('');
+      tfEl.querySelectorAll('.tf-chip').forEach(b => b.addEventListener('click', () => {
+        const tf = b.dataset.tf;
+        if (state.selectedTfs.includes(tf)) {
+          if (state.selectedTfs.length > 1) state.selectedTfs = state.selectedTfs.filter(x => x !== tf);
+        } else state.selectedTfs.push(tf);
+        renderScope();
+      }));
+
+      const aEl = document.getElementById('asset-buttons');
+      aEl.innerHTML = state.allAssets.map(a => {
+        const active = state.selectedAssets.includes(a);
+        return `<button type="button" data-asset="${esc(a)}" class="asset-chip font-mono-num px-2.5 py-1 rounded border ${active ? 'border-emerald-500 bg-emerald-600/20 text-emerald-300' : 'border-slate-700 bg-[#0B0F17] text-slate-400'}">${esc(a)}</button>`;
+      }).join('');
+      aEl.querySelectorAll('.asset-chip').forEach(b => b.addEventListener('click', () => {
+        const a = b.dataset.asset;
+        if (state.selectedAssets.includes(a)) {
+          state.selectedAssets = state.selectedAssets.filter(x => x !== a);
+        } else {
+          state.selectedAssets.push(a);
+        }
+        renderScope();
+      }));
+    }
+
+    function renderSignals() {
+      const now = Date.now() / 1000;
+      const pending = state.signals.filter(s => s.status === 'PENDING').length;
+      document.getElementById('pending-count').textContent = String(pending);
+      document.getElementById('at-status-badge').textContent = state.autoTrade.enabled ? 'ARMED' : 'OFF';
+      document.getElementById('at-status-badge').className = state.autoTrade.enabled ? 'text-amber-400' : 'text-slate-400';
+
+      const banner = document.getElementById('radar-status-banner');
+      const activeCount = state.leaderboard.filter(r => r.live_active).length;
+
+      if (!state.wsConnected || state.brokerProvider === 'NONE') {
+        banner.className = 'rounded-lg border border-rose-500/40 bg-rose-500/10 p-4 text-xs text-rose-200';
+        banner.textContent = state.lang === 'fa'
+          ? 'اتصال به بروکر برقرار نیست — موتور کاملاً متوقف است و هیچ تستی انجام نمی‌شود. ابتدا از دکمه «اتصال به بروکر (SSID)» اتصال را تست و ذخیره کنید.'
+          : 'Broker Disconnected — Engine is completely idle. Open Broker SSID, run Test Connection, and connect first.';
+      } else if (state.selectedAssets.length === 0) {
+        banner.className = 'rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-200';
+        banner.textContent = state.lang === 'fa'
+          ? 'هیچ جفت‌ارزی انتخاب نشده است — برای شروع تست استراتژی‌ها، ارزهای دلخواهتان را در نوار بالا انتخاب کرده و «اعمال محدوده تست» را بزنید.'
+          : 'No assets selected — Select your target assets above and click Apply Scope to begin strategy evaluation.';
+      } else if (state.mode === 'SNIPER' && activeCount === 0) {
+        banner.className = 'rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-4 text-xs text-emerald-200';
+        banner.textContent = state.lang === 'fa'
+          ? 'حالت اسنایپر واقعی فعال است، اما هنوز هیچ استراتژی‌ای را در تب «آزمایشگاه استراتژی» تیک Active نزده‌اید.'
+          : 'Active Sniper Mode is ON, but 0 strategies are checked as Active in Strategy Lab.';
+      } else {
+        banner.className = 'hidden';
+      }
+
+      const grid = document.getElementById('live-signals-grid');
+      const visible = state.signals.slice(0, 18);
+      if (visible.length === 0) {
+        grid.innerHTML = `<div class="col-span-full rounded-lg border border-slate-800 bg-[#111827] p-8 text-center text-xs text-slate-400">${state.lang === 'fa' ? 'منتظر ستاپ دقیق مطابق استراتژی‌ها (فقط ستاپ‌های تأییدشده صادر می‌شوند)...' : 'Waiting for confirmed high-precision strategy setups...'}</div>`;
+        return;
+      }
+      grid.innerHTML = visible.map(sig => {
+        const isCall = sig.direction === 'CALL';
+        const rem = Math.max(0, Math.ceil(sig.expires_at - now));
+        return `
+          <article class="signal-enter rounded-lg border border-slate-800 bg-[#111827] p-4 space-y-2.5">
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h3 class="text-sm font-semibold text-white font-mono-num">${esc(sig.asset)}</h3>
+                <div class="text-xs text-slate-400">${esc(sig.market_type)} · ${esc(sig.timeframe)} · ${esc(sig.strategy_name)}</div>
+              </div>
+              <div class="text-end font-mono-num">
+                <div class="text-sm font-bold ${isCall ? 'text-emerald-400' : 'text-rose-400'}">${esc(sig.direction)}</div>
+                <div class="text-xs text-slate-300">${Number(sig.confidence).toFixed(1)}%</div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between border-t border-slate-800 pt-2 text-xs font-mono-num">
+              <span class="text-slate-400">${Number(sig.entry_price).toFixed(5)}</span>
+              <span class="${sig.status === 'WIN' ? 'text-emerald-400' : sig.status === 'LOSS' ? 'text-rose-400' : 'text-amber-400'} font-semibold">${sig.status === 'PENDING' ? `EXP ${rem}s` : esc(sig.status)}</span>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function renderLeaderboard() {
+      const tbody = document.getElementById('leaderboard-body');
+      tbody.innerHTML = state.leaderboard.map(r => `
+        <tr class="hover:bg-slate-800/35">
+          <td class="px-4 py-2.5 font-medium text-white">${esc(r.strategy_name)}</td>
+          <td class="px-3 py-2.5 text-end font-mono-num font-semibold ${r.wr_last_100 >= 68 ? 'text-emerald-400' : 'text-slate-200'}">${r.wr_last_100.toFixed(1)}%</td>
+          <td class="px-3 py-2.5 text-end font-mono-num text-slate-300">${r.today_wr.toFixed(1)}%</td>
+          <td class="px-3 py-2.5 text-end font-mono-num text-slate-300">${r.total_signals}</td>
+          <td class="px-3 py-2.5 text-end font-mono-num text-slate-300">${r.wins}/${r.losses}</td>
+          <td class="px-3 py-2.5 text-end font-mono-num">${r.current_streak}</td>
+          <td class="px-3 py-2.5 text-center"><input type="checkbox" ${r.shadow_enabled ? 'checked' : ''} data-strat="${esc(r.strategy_name)}" data-field="shadow_enabled" class="st-tog h-4 w-4 accent-blue-600" /></td>
+          <td class="px-4 py-2.5 text-center"><input type="checkbox" ${r.live_active ? 'checked' : ''} data-strat="${esc(r.strategy_name)}" data-field="live_active" class="st-tog h-4 w-4 accent-emerald-600" /></td>
+        </tr>
+      `).join('');
+      tbody.querySelectorAll('.st-tog').forEach(el => el.addEventListener('change', async (e) => {
+        const body = { strategy_name: e.currentTarget.dataset.strat };
+        body[e.currentTarget.dataset.field] = e.currentTarget.checked;
+        await fetch('/api/strategies/toggle', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+      }));
+    }
+
+    function renderHealth() {
+      document.getElementById('market-health-grid').innerHTML = state.marketHealth.map(m => `
+        <div class="rounded-lg border border-slate-800 bg-[#111827] p-4 space-y-2 text-xs">
+          <div class="flex justify-between font-mono-num">
+            <strong class="text-white text-sm">${esc(m.asset)}</strong>
+            <span class="text-slate-200">${Number(m.price).toFixed(5)}</span>
+          </div>
+          <div class="font-semibold ${m.regime === 'OPTIMAL' ? 'text-emerald-400' : m.regime === 'EXTREME_VOLATILITY' ? 'text-rose-400' : 'text-amber-400'}">${esc(m.regime)}</div>
+          <div class="text-slate-400">${esc(m.warning_message)}</div>
+        </div>
+      `).join('');
+    }
+
+    async function loadHistory() {
+      const res = await fetch('/api/history?limit=150');
+      const data = await res.json();
+      document.getElementById('history-body').innerHTML = (data.signals || []).map(s => `
+        <tr>
+          <td class="px-4 py-2 text-slate-400">${new Date(s.timestamp * 1000).toISOString().slice(11,19)}</td>
+          <td class="px-3 py-2 text-white">${esc(s.asset)}</td>
+          <td class="px-3 py-2">${esc(s.timeframe)}</td>
+          <td class="px-3 py-2 font-sans">${esc(s.strategy_name)}</td>
+          <td class="px-3 py-2 ${s.direction === 'CALL' ? 'text-emerald-400' : 'text-rose-400'}">${esc(s.direction)}</td>
+          <td class="px-3 py-2 text-end">${Number(s.entry_price).toFixed(5)}</td>
+          <td class="px-3 py-2 text-end">${s.exit_price != null ? Number(s.exit_price).toFixed(5) : '—'}</td>
+          <td class="px-4 py-2 text-end font-semibold">${esc(s.status)}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function saveScope(customSym) {
+      await fetch('/api/scope', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          selected_assets: state.selectedAssets,
+          selected_timeframes: state.selectedTfs,
+          high_precision_mode: document.getElementById('chk-precision').checked,
+          min_signal_confidence: 78,
+          custom_symbol: customSym || null,
+        })
+      });
+    }
+
+    async function setMode(nextMode) {
+      state.mode = nextMode;
+      renderModeButtons();
+      await fetch('/api/mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: nextMode }),
+      });
+    }
+
+    async function bootstrap() {
+      applyLang();
+      const res = await fetch('/api/state');
+      const d = await res.json();
+      state.mode = d.mode;
+      state.wsConnected = Boolean(d.ws_connected);
+      state.brokerProvider = d.broker_provider || 'NONE';
+      state.signals = d.recent_signals || [];
+      state.leaderboard = d.leaderboard || [];
+      state.marketHealth = d.market_health || [];
+      state.allAssets = d.assets || [];
+      state.selectedAssets = d.selected_assets || [];
+      state.selectedTfs = d.selected_timeframes || ['5m'];
+      state.autoTrade = d.auto_trade || { enabled: false };
+      document.getElementById('chk-precision').checked = d.high_precision_mode;
+      document.getElementById('cfg-provider').value = state.brokerProvider;
+      document.getElementById('cfg-demo').checked = Boolean(d.broker_demo_mode);
+      document.getElementById('cfg-at-enabled').checked = state.autoTrade.enabled;
+      document.getElementById('feed-label').textContent = d.ws_detail;
+      renderConnectionBadge();
+      renderModeButtons();
+      renderScope();
+      renderSignals();
+      renderLeaderboard();
+      renderHealth();
+
+      const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const ws = new WebSocket(`${proto}//${location.host}/ws`);
+      ws.onmessage = (ev) => {
+        const m = JSON.parse(ev.data);
+        if (m.type === 'telemetry:update') {
+          document.getElementById('tel-cpu').textContent = `${m.data.cpu_pct}%`;
+          document.getElementById('tel-ram').textContent = `${m.data.ram_pct}%`;
+          document.getElementById('feed-label').textContent = m.data.ws_detail;
+          state.wsConnected = Boolean(m.data.ws_connected);
+          state.brokerProvider = m.data.broker_provider || state.brokerProvider;
+          if (m.data.mode && m.data.mode !== state.mode) {
+            state.mode = m.data.mode;
+            renderModeButtons();
+          }
+          renderConnectionBadge();
+          state.marketHealth = m.data.market_health || [];
+          renderHealth();
+          renderSignals();
+        } else if (m.type === 'mode:update') {
+          state.mode = m.data.mode;
+          renderModeButtons();
+        } else if (m.type === 'signal:new') {
+          state.signals.unshift(m.data.signal);
+          renderSignals();
+        } else if (m.type === 'signal:resolved') {
+          const i = state.signals.findIndex(x => x.id === m.data.id);
+          if (i >= 0) state.signals[i] = m.data;
+          renderSignals();
+        } else if (m.type === 'leaderboard:update') {
+          state.leaderboard = m.data;
+          renderLeaderboard();
+          renderSignals();
+        } else if (m.type === 'scope:update') {
+          state.allAssets = m.data.assets;
+          state.selectedAssets = m.data.selected_assets;
+          state.selectedTfs = m.data.selected_timeframes;
+          renderScope();
+          renderSignals();
+        } else if (m.type === 'autotrade:update') {
+          state.autoTrade = m.data;
+          renderSignals();
+        }
+      };
+    }
+
+    document.getElementById('btn-lang').addEventListener('click', () => { state.lang = state.lang === 'fa' ? 'en' : 'fa'; applyLang(); });
+    document.getElementById('btn-add-symbol').addEventListener('click', async () => {
+      const inp = document.getElementById('custom-symbol-input');
+      if (inp.value.trim()) { await saveScope(inp.value.trim()); inp.value = ''; }
+    });
+    document.getElementById('btn-clear-assets').addEventListener('click', async () => {
+      state.selectedAssets = [];
+      renderScope();
+      await saveScope(null);
+    });
+    document.getElementById('btn-apply-scope').addEventListener('click', () => saveScope(null));
+    document.getElementById('btn-clear-history').addEventListener('click', async () => {
+      await fetch('/api/history/clear', { method: 'POST' });
+      state.signals = [];
+      renderSignals();
+    });
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.className = 'tab-btn text-slate-400 hover:text-slate-200 whitespace-nowrap');
+      btn.className = 'tab-btn text-white whitespace-nowrap';
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+      document.getElementById('tab-' + btn.dataset.tab).classList.remove('hidden');
+      if (btn.dataset.tab === 'history') loadHistory();
+    }));
+    document.getElementById('btn-mode-shadow').addEventListener('click', () => setMode('SHADOW'));
+    document.getElementById('btn-mode-sniper').addEventListener('click', () => setMode('SNIPER'));
+    document.getElementById('btn-select-top').addEventListener('click', () => fetch('/api/strategies/select-top', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ min_win_rate: Number(document.getElementById('top-wr-input').value) || 68, min_signals: 10 }) }));
+
+    const modal = document.getElementById('config-modal');
+    const testResultEl = document.getElementById('test-conn-result');
+    const closeModal = () => { modal.classList.add('hidden'); modal.classList.remove('flex'); };
+    document.getElementById('btn-open-config').addEventListener('click', () => {
+      testResultEl.className = 'hidden';
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    });
+    document.getElementById('btn-close-config').addEventListener('click', closeModal);
+    document.getElementById('btn-cancel-config').addEventListener('click', closeModal);
+
+    document.getElementById('btn-test-conn').addEventListener('click', async () => {
+      testResultEl.className = 'rounded border border-slate-700 bg-[#0B0F17] p-2.5 text-slate-300';
+      testResultEl.textContent = state.lang === 'fa' ? 'در حال تست اتصال واقعی WebSocket...' : 'Testing live WebSocket handshake...';
+      try {
+        const res = await fetch('/api/broker/test-connection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            broker_provider: document.getElementById('cfg-provider').value,
+            broker_demo_mode: document.getElementById('cfg-demo').checked,
+            broker_ssid: document.getElementById('cfg-ssid').value || null,
+          }),
+        });
+        const r = await res.json();
+        testResultEl.className = r.ok
+          ? 'rounded border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-emerald-300 font-mono-num text-[11px]'
+          : 'rounded border border-rose-500/40 bg-rose-500/10 p-2.5 text-rose-300 font-mono-num text-[11px]';
+        testResultEl.textContent = `${r.ok ? '✓ OK' : '✕ FAILED'} ${r.latency_ms ? `(${r.latency_ms}ms) ` : ''}— ${r.message}`;
+      } catch (err) {
+        testResultEl.className = 'rounded border border-rose-500/40 bg-rose-500/10 p-2.5 text-rose-300 text-[11px]';
+        testResultEl.textContent = String(err);
+      }
+    });
+
+    document.getElementById('btn-disconnect').addEventListener('click', async () => {
+      await fetch('/api/broker/disconnect', { method: 'POST' });
+      document.getElementById('cfg-provider').value = 'NONE';
+      state.wsConnected = false;
+      state.brokerProvider = 'NONE';
+      renderConnectionBadge();
+      renderSignals();
+      closeModal();
+    });
+
+    document.getElementById('config-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await fetch('/api/config/broker', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          broker_provider: document.getElementById('cfg-provider').value,
+          broker_demo_mode: document.getElementById('cfg-demo').checked,
+          broker_ssid: document.getElementById('cfg-ssid').value || null,
+        })
+      });
+      await fetch('/api/autotrade', {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({
+          enabled: document.getElementById('cfg-at-enabled').checked,
+          target: document.getElementById('cfg-at-target').value,
+          stake: Number(document.getElementById('cfg-at-size').value) || 10,
+          max_consec_losses: Number(document.getElementById('cfg-at-maxloss').value) || 3,
+        })
+      });
+      closeModal();
+    });
+
+    setInterval(renderSignals, 1000);
+    bootstrap();
+  </script>
+</body>
+</html>
